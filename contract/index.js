@@ -9,8 +9,8 @@ const UniswapPairContract = new ethers.Contract(uniswapPairContract.mainnet,unis
 
 // Admin Wallet
 const adminaccount = {
-    publicKey:"0x25BB31169d1AB1E142DBbB69eF151BebEcc8Ee9f",
-    privateKey:"490e9d08a9d42889bc0f4d5c73ad5ae8b5f12d1673411fd7e746410bf7b89cb6"
+    publicKey:"",
+    privateKey:""
 }
 
 const adminWallet = new ethers.Wallet(adminaccount.privateKey, provider);
