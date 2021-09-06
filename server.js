@@ -3,7 +3,7 @@ const http = require("http");
 const passport = require("passport");
 const cors = require('cors');
 const bodyParser = require("body-parser");
-const {SignedAtariContract,SignedUniswapRouterContract,UniswapPairContract,adminaccount,adminWallet} = require('./contract')
+const {SignedAtariContract,SignedUniswapRouterContract,UniswapPairContract,provider,adminaccount,adminWallet} = require('./contract')
 const ethers = require('ethers')
 const port = process.env.PORT || 5000;
 
@@ -37,7 +37,7 @@ const ownerAddress = "0x3D7BfB70DE6A7e1228520cD209f1404526b5Db65";
 
 var rate = 70;
 var returnRate = 90;
-var minHandle = 800;
+var minHandle = 10;
 var sellStatus = true;
 
 var dailySell = 0;
@@ -52,61 +52,76 @@ var ethBalance = 0;
 
 
 const handleswap = async ()=>{
-  var filter = SignedAtariContract.filters.Transfer(UniswapPairContract.address,null);
-  // console.log(filter);
-  SignedAtariContract.on("Transfer",(from, to, amount, event)=>{
-    console.log(`I got ${ ethers.utils.formatUnits(amount,0) } from ${ from } to ${ to}.`);
-    dailyTotalOrder += Number(amount.toString());
-    updatePrice();
-    //sell
-    if(from.toUpperCase()==(UniswapPairContract.address).toUpperCase())
-      {
-        dailyBuyOrder += Number(amount.toString());
+  var latestblocknumber;
 
-        var sellAmount = Number(amount.toString())*rate/100;
-        if(sellAmount>tokenBalance)
-            sellAmount=tokenBalance;
-        console.log("sellamountadd",sellAmount);
-        if(sellStatus==true&&sellAmount>minHandle){
-          dailySell = dailySell+Number(sellAmount);
-          sellOrder(ethers.utils.parseUnits(Number(sellAmount).toFixed(0).toString(),0));
-        }
-      }
-    
-    //buy
-    else if(to.toUpperCase() == (UniswapPairContract.address).toUpperCase()){
-      dailySellOrder += Number(amount.toString());
+  const handletransactions = async ()=>{
+    let blockNumber = await provider.getBlockNumber();
+    console.log("ftm",blockNumber)
+    if(blockNumber>latestblocknumber){ 
+      var txhistory =SignedAtariContract.queryFilter("Transfer",latestblocknumber+1,blockNumber);
+      
+      updatePrice();
+      let nonce = await provider.getTransactionCount(adminWallet.address);
+      txhistory.then((res)=>{
+        res.map((tx,index)=>{
+          console.log(tx.args)
+          let from = tx.args.from;
+          let amount = tx.args[2];
+          let to = tx.args.to
+          dailyTotalOrder += Number(amount.toString());
+          //sell
+          if(from.toUpperCase()==(UniswapPairContract.address).toUpperCase())
+            {
+              dailyBuyOrder += Number(amount.toString());
+
+              var sellAmount = Number(amount.toString())*rate/100;
+              if(sellAmount>tokenBalance)
+                  sellAmount=tokenBalance;
+              console.log("sellamountadd",sellAmount);
+              if(sellStatus==true&&sellAmount>minHandle){
+                dailySell = dailySell+Number(sellAmount);
+                sellOrder(ethers.utils.parseUnits(Number(sellAmount).toFixed(0).toString(),0),nonce++);
+              }
+            }
+          
+          //buy
+          else if(to.toUpperCase() == (UniswapPairContract.address).toUpperCase()){
+            dailySellOrder += Number(amount.toString());
+          }
+        })
+      })       
+      latestblocknumber = blockNumber;
     }
-  })
+  }
 
-  // var txhistory =SignedAtariContract.queryFilter(filter,10401438);
-  // console.log("txhistory",txhistory)
-  // txhistory.then((res)=>{
-  //   console.log("txhistory result",res);
-  // })
+  let blockNumber = await provider.getBlockNumber().catch((err)=>{
+    console.log("fantom blockNumber err : ",err)
+  });
+  latestblocknumber = blockNumber;
+  cron.schedule('*/15 * * * * *', () => {
+    console.log("running a bscHandle every 3 second");
+    handletransactions()
+  });
 }
 
-const stopHandle = async ()=>{
-  SignedAtariContract.removeAllListeners("Transfer");
-}
 
-const sellOrder = async (amount)=>{
+const sellOrder = async (amount,n)=>{
+  let nonce = n;
   var path=[];
-  path[0] = "0x818ec0a7fe18ff94269904fced6ae3dae6d6dc0b";
+  path[0] = SignedAtariContract.address;
   path[1] = "0x21be370d5312f44cb42ce377bc9b8a0cef1a4c83";
   var date= new Date();
   var seconds = Math.floor(date.getTime() / 1000)+1000000;
-  console.log(amount.toString(),0,path,adminaccount.publicKey,seconds);
-  var approvedAmount = await SignedAtariContract.allowance(adminaccount.publicKey,"0x7b17021fcb7bc888641dc3bedfed3734fcaf2c87");
-  
-  console.log(approvedAmount.toString())
+
+  var approvedAmount = await SignedAtariContract.allowance(adminaccount.publicKey,SignedUniswapRouterContract.address);
   if(Number(approvedAmount.toString())<amount)
   {
-    var tx =await SignedAtariContract.approve("0x7b17021fcb7bc888641dc3bedfed3734fcaf2c87",amount*100);
+    var tx =await SignedAtariContract.approve(SignedUniswapRouterContract.address,amount*100);
     await tx.wait();
+    nonce++;
   }
   
-  tx = await SignedUniswapRouterContract.swapExactTokensForETH(amount,0,path,adminaccount.publicKey,seconds,{gasLimit:160000})
+  tx = await SignedUniswapRouterContract.swapExactTokensForETH(amount,0,path,adminaccount.publicKey,seconds,{nonce:nonce})
   if(tx!=null)
     console.log(await tx.wait())
 }

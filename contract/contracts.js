@@ -403,7 +403,7 @@ const atariContract = {
 
 const uniswapRouterContract = {
 	kovan : "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D",
-	mainnet : "0x7b17021fcb7bc888641dc3bedfed3734fcaf2c87",
+	mainnet : "0x16327E3FbDaCA3bcF7E38F5Af2599D2DDc33aE52",
 	abi : [
 		{
 			"inputs": [
@@ -1381,7 +1381,7 @@ const uniswapRouterContract = {
 
 const uniswapPairContract = {
 	kovan : "0xc4d9102e36c5063b98010A03C1F7C8bD44c32A00",
-	mainnet : "0x0370dC24570ED93DB0b67d20340923E56c0aADD9",
+	mainnet : "0x2ccc88B9EcbB477f68158187f616cFEcB2276641",
 	name : "Uniswap V2",
 	symbol : "UNI-V2",
 	decimals :18,
